@@ -267,10 +267,21 @@ class BirdDetector:
 
         pairs = list(zip(labels[: scores.shape[0]], scores.tolist(), strict=False))
         combined_allowlist: set[str] = set()
-        if candidate_allowlist:
-            combined_allowlist.update(candidate_allowlist)
-        if self.legacy_use_mamiraua_whitelist and self._mamiraua_labels:
-            combined_allowlist.update(self._mamiraua_labels)
+        mamiraua_enabled = self.legacy_use_mamiraua_whitelist and bool(self._mamiraua_labels)
+        candidate_enabled = bool(candidate_allowlist)
+
+        # IMPORTANT:
+        # Use INTERSECTION when both filters are present, so regional filtering
+        # actually narrows predictions instead of broadening them.
+        if mamiraua_enabled and candidate_enabled:
+            combined_allowlist = set(candidate_allowlist) & set(self._mamiraua_labels)
+            # Safety fallback: if intersection is empty, prefer regional-only.
+            if not combined_allowlist:
+                combined_allowlist = set(candidate_allowlist)
+        elif candidate_enabled:
+            combined_allowlist = set(candidate_allowlist)
+        elif mamiraua_enabled:
+            combined_allowlist = set(self._mamiraua_labels)
         if combined_allowlist:
             pairs = [(label, score) for label, score in pairs if label in combined_allowlist]
         if candidate_denylist:
